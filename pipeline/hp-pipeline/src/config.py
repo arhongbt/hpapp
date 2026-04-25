@@ -12,9 +12,9 @@ if not API_KEY:
         "ANTHROPIC_API_KEY not set. Run: export ANTHROPIC_API_KEY='sk-ant-...'"
     )
 
-# Model: Claude Sonnet 4 — good quality/cost balance for this task.
+# Model: Claude Sonnet 4.6 — good quality/cost balance for this task.
 # If quality is insufficient on tricky cases, swap to Opus.
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "claude-sonnet-4-6"
 
 # Token limits
 MAX_TOKENS_DESCRIPTION = 1024

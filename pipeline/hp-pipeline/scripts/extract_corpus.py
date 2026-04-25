@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "claude-sonnet-4-6"
 SCRIPT_DIR = Path(__file__).resolve().parent
 PIPELINE_DIR = SCRIPT_DIR.parent
 PROV_DIR = PIPELINE_DIR.parent.parent / "hp-prov"
