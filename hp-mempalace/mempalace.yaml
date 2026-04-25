@@ -1,0 +1,5 @@
+wing: hp_mempalace
+rooms:
+- name: general
+  description: All project files
+  keywords: []

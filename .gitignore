@@ -1,0 +1,26 @@
+# OS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.local
+
+# Pipeline output
+pipeline/hp-pipeline/output/
+pipeline/hp-pipeline/data/*.jsonl
+!pipeline/hp-pipeline/data/uppgifter_sample.jsonl
+
+# Editor
+.vscode/
+.idea/
+
+# Node (in case GBrain or claude-context land here)
+node_modules/
+
+# Pipeline zip is the source — keep it for now
+# pipeline/hp-pipeline.zip
