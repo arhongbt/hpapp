@@ -15,7 +15,8 @@ from prompts.step4_classify import SYSTEM_PROMPT_STEP4, USER_PROMPT_STEP4
 def format_skills(taxonomy: Taxonomy, delprov: str) -> str:
     """Format only the micro-skills relevant for this delprov."""
     lines = []
-    delprov_root_id = delprov.lower()
+    # Normalisera svenska tecken: taxonomy-id är ASCII (LÄS → "las", inte "läs")
+    delprov_root_id = delprov.lower().replace("ä", "a").replace("å", "a").replace("ö", "o")
     
     # Find all level-3 nodes whose ancestor is this delprov
     parent_map = {n.id: n.parent_id for n in taxonomy.nodes}

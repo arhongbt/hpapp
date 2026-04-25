@@ -84,7 +84,13 @@ def call_claude(
     max_tokens: int = 1024,
     temperature: float = 0.0,
 ) -> str:
-    """Call Claude with retry logic. Returns the text response."""
+    """Call Claude with retry logic. Returns the text response.
+
+    Använder messages.create() (non-streaming). Streaming-implementationen
+    visade sig vara instabil (text_stream-iterationen avslutar tyst för
+    vissa batches). Håll max_tokens under SDK:s ~21K streaming-tröskel
+    så vi aldrig behöver streama.
+    """
     response = client.messages.create(
         model=MODEL,
         max_tokens=max_tokens,
@@ -92,11 +98,4 @@ def call_claude(
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
     )
-    
-    # Concatenate all text blocks
-    text_parts = []
-    for block in response.content:
-        if hasattr(block, "text"):
-            text_parts.append(block.text)
-    
-    return "\n".join(text_parts)
+    return response.content[0].text

@@ -15,6 +15,9 @@ pipeline/hp-pipeline/output/
 pipeline/hp-pipeline/data/*.jsonl
 !pipeline/hp-pipeline/data/uppgifter_sample.jsonl
 
+# Råa HP-prov (PDFs) — källmaterial, inte kod. Kan laddas ner från studera.nu.
+hp-prov/
+
 # Editor
 .vscode/
 .idea/
