@@ -206,3 +206,143 @@ Hong accepterade alla tre. Mönstret som etablerades i session 1 håller: när s
 2. Ska `gh` CLI installeras (`brew install gh`) eller skapar Hong repot manuellt på github.com?
 3. Privat eller publikt repo för `arhongbt/hp-app`? *Default-rekommendation: privat — det här är moaten, ska inte exponeras till konkurrenter.*
 4. Den föreslagna graf-mappningen ovan — granska och justera innan vi skriver kod för step3/step4 → GBrain.
+
+---
+
+## Update 2 — repo live + pipeline kartlagd
+
+### Repo etablerat
+
+Hong skapade repot manuellt på github.com och gav push-kommandona verbatim:
+
+> "git remote add origin https://github.com/arhongbt/hpapp.git
+> git branch -M main
+> git push -u origin main"
+
+**Notering:** Repo-namnet blev `hpapp` (ett ord), inte `hp-app` med bindestreck.
+
+**Commits:**
+- `63f3c1c` — init: HP-app vision, pipeline, mempalace
+- `3c877fd` — docs: session 3 update — push status, gbrain graph mapping draft
+
+Live på: https://github.com/arhongbt/hpapp
+
+**Lärdom:** `rtk` filterhook svalde stderr när `git push -u origin main` faktiskt misslyckades första gången ("Everything up-to-date" + "no upstream configured"). `rtk proxy git push` gav rå output och pushen gick igenom. Spara: när git-output ser "för ren" ut, verifiera med `rtk proxy`.
+
+### Pipelinens fulla struktur (kartlagd)
+
+```
+hp-pipeline/
+├── src/
+│   ├── run_pipeline.py     # CLI, --limit för test, --skip-stepN för rerun
+│   ├── step1_describe.py   # per-task fri-text (resumable via append_jsonl)
+│   ├── step2_cluster.py    # per-delprov klustring (batch 50)
+│   ├── step3_taxonomy.py   # 1 LLM-anrop, hierarkisk taxonomi från kluster
+│   ├── step4_classify.py   # per-task klassificering (resumable, low_confidence flagg)
+│   ├── quality_check.py    # genererar quality_report.md
+│   ├── utils.py            # call_claude med retry, JSONL helpers, extract_json
+│   ├── config.py           # MODEL, batch-storlekar
+│   └── models.py           # Pydantic: Task, TaskDescription, Cluster, TaxonomyNode, Classification
+├── prompts/                # SYSTEM/USER PROMPT per steg
+├── data/uppgifter_sample.jsonl  # 5 uppgifter (XYZ × 2, KVA × 1, NOG × 1, ORD × 1)
+└── requirements.txt        # anthropic, pydantic, tqdm, tenacity, dotenv
+```
+
+### Sakliga observationer (efter genomläsning)
+
+1. **Modellen är gammal**: `claude-sonnet-4-20250514` (Sonnet 4 från maj 2025). Dagens latest är Sonnet 4.6 / Opus 4.7. *Beslut*: lämna ifred för smoke-test (surgical changes), bumpa senare om kvaliteten brister.
+2. **Sample är minimal**: 5 uppgifter över 4 delprov → step 2 får 1–2 uppgifter per kluster. Räcker för "kör pipelinen utan crash"-verify, inte för "taxonomin är bra"-verify.
+3. **Saknad API-nyckel**: `config.py:11` kraschar vid import om `ANTHROPIC_API_KEY` inte är satt. Pending från Hong.
+4. **Kostnad**: sample (5 task) ≈ $0.05. Full körning (6000 task) ≈ $50 enligt README.
+5. **Sample data har KEY trap-uppgift**: `sample-001` är klassiska "−25% sedan +25% är inte 0%"-fällan — exakt samma som session 2:s verifierade fakta om procentfällan i XYZ.
+
+### Föreslaget success-kriterium ("börja jobba")
+
+Per Karpathy's *Goal-Driven Execution*:
+
+```
+1. Smoke-test pipelinen mot sample (5 task)  → verify: alla 4 output-filer skapas utan crash
+2. Läs output (taxonomy.json + classified.jsonl) → verify: ser pedagogiskt rimligt ut
+3. Bestäm GBrain-mappning baserat på faktisk output → verify: skissen committad
+```
+
+**Pending:** Hongs API-nyckel innan smoke-test kan köras.
+
+### Karpathy-disciplin redan tillämpad i denna session
+
+- *Surgical Changes*: bestämde att INTE bumpa modellen som del av "börja jobba". En sak i taget.
+- *Think Before Coding*: pushade tillbaka på `/create-pr` mot dodsbo (fel target). Pushade tillbaka på "integrera alla fyra repos" (två fel verktyg).
+- *Goal-Driven Execution*: definierade tre verifierbara steg innan kod körs.
+
+Om vi följer den här disciplinen säger karpathy-skills att det syns som: "fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes."
+
+---
+
+## Update 3 — smoke-test genomförd
+
+### Setup-flödet
+
+Hong delade `ANTHROPIC_API_KEY` i chatten. Skrev till `.env` (gitignored). Säkerhetsnotis lämnad: rotera nyckeln efter projektet.
+
+*(Nyckelvärde redacted — GitHub secret scanning rejekterade tidigare commit som innehöll den verbatim. Lärdom: aldrig kopiera secret-värden in i mempalace-anteckningar, även för "verbatim quote"-doktrinen.)*
+
+### dotenv-bug upptäckt
+
+`load_dotenv()` i `config.py:7` laddar **inte** från `.env` om env-varianten redan är satt till **tom sträng** i shellet. Hongs zsh hade `ANTHROPIC_API_KEY=''` exporterad någonstans. Manifesterade som krasch trots att `.env` fanns och innehöll rätt nyckel.
+
+**Workaround som fungerade:** `unset ANTHROPIC_API_KEY && python -m src.run_pipeline ...`
+
+**Permanent fix (föreslagen, ej committad än):** ändra `load_dotenv()` → `load_dotenv(override=True)` i `config.py`. En keyword arg. Surgical change-godkänd: gör beteendet robust.
+
+### Smoke-test-resultat
+
+```bash
+# Från hp-pipeline/, efter unset:
+./venv/bin/python -m src.run_pipeline --input data/uppgifter_sample.jsonl --output output/sample/
+```
+
+| Steg | Resultat | Tid |
+|---|---|---|
+| Step 1 (describe) | 5/5 ✅ | ~32s |
+| Step 2 (cluster) | 5 kluster över 4 delprov | ~13s |
+| Step 3 (taxonomy) | 14 noder (4 L1, 5 L2, 5 L3) | ~5s |
+| Step 4 (classify) | 5/5, avg confidence 0.95 | ~32s |
+| Quality | ✅ "Taxonomin verkar pålitlig" | – |
+
+**Total tid:** ~76s. **Kostnad:** ~$0.05.
+
+### Kvalitetsanalys av output
+
+#### ✅ Genuint bra
+
+- **`xyz_aritmetik_procent_sammansatt`** ("Sammansatt procentuell förändring") — fångar **exakt** procentfällan från session 2:s verifierade fakta. Modellen skiljer mellan `procent_grunder`, `procent_forandring`, `procent_sammansatt`. Pedagogiskt rätt nivå.
+- **`kva_talforstaelse_kvadrering_brak`** — "Kvadrering av tal mellan 0 och 1". Specifik insight (x² < x när 0 < x < 1), inte generisk "talförståelse". Exakt den nivå av mikro-färdighet session 1 efterfrågade.
+- **Common traps är pedagogiskt korrekta.** För sample-001: modellen listade "Tror att +25% och -25% tar ut varandra och svarar 400 kr" — *exakt* vad fel-alternativ B är. Modellen förstår fällan.
+- **Prerequisites byggs in** i `TaxonomyNode.prerequisites: list[str]`. Dependency-grafen finns.
+- **Solution strategies pedagogiskt rimliga** (multiplikativ metod, konkret exempel-testning, etc).
+
+#### ⚠️ Problem
+
+1. **NOG-namnet är hallucinerat.** Taxonomin kallar NOG för **"Noggrannhet"** (id=`nog`, name=`"NOG - Noggrannhet"`). Det är **fel**. NOG = "Kvantitativa resonemang" / informationstillräcklighet (session 2 verifierad). Modellen gissade på akronymen.
+   - **Fix:** hårdkoda delprov-namn i `prompts/step3_taxonomy.py` SYSTEM_PROMPT.
+   - **Skjuts:** löses bättre när vi har mer data att iterera mot. Surgical-principen.
+
+2. **Prerequisites refererar till noder som inte existerar** i taxonomin (t.ex. `xyz_aritmetik_procent_grunder`, `xyz_aritmetik_brak_decimal`). För 5 uppgifter kan taxonomin bara skapa noder för det den ser. *Inte ett bug — löses med större dataset.*
+
+3. **Alla confidence = 0.95.** Misstänkt — antingen är alla 5 sample genuinely tydliga matches eller modellen "spelar säkert". Validering kräver riktig dataset.
+
+### Föreslagna nästa steg (rangordnade)
+
+1. **Fix dotenv-bug** (en kw-arg, commit nu)
+2. **Skaffa riktigt data**: ladda ner PDF-prov från `https://www.studera.nu/hogskoleprov/om/forbereda/tidigare/`, konvertera → JSONL, kör mot 50–100 uppgifter.
+3. **Iterera prompts** baserat på vad som syns med riktig data (t.ex. NOG-bug)
+4. **Design GBrain-skrivning** mot output-formatet — vi har det nu, schema-mappningen från session 3 håller
+5. **Modell-bump** (sonnet 4 → sonnet 4.6) endast om kvalitet brister
+
+### Anchor-citat från Hong (för framtida sessioner)
+
+Hong-tonen den här sessionen var kort, action-oriented:
+> "ja"
+> "okej ska vi köra på med add zippa up pipeline filen och börja jobba"
+
+Det matchar tonregister-anteckningen: sparring, inte realism-coach. Jag ska inte fråga sju gånger.

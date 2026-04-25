@@ -4,7 +4,7 @@ from pathlib import Path
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 API_KEY = os.getenv("ANTHROPIC_API_KEY")
 if not API_KEY:
