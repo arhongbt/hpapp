@@ -86,17 +86,16 @@ def call_claude(
 ) -> str:
     """Call Claude with retry logic. Returns the text response.
 
-    Använder streaming — krävs av SDK när max_tokens >~21k och säkrare för
-    långa svar. Lägre max_tokens funkar också via stream().
+    Använder messages.create() (non-streaming). Streaming-implementationen
+    visade sig vara instabil (text_stream-iterationen avslutar tyst för
+    vissa batches). Håll max_tokens under SDK:s ~21K streaming-tröskel
+    så vi aldrig behöver streama.
     """
-    text_parts: list[str] = []
-    with client.messages.stream(
+    response = client.messages.create(
         model=MODEL,
         max_tokens=max_tokens,
         temperature=temperature,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
-    ) as stream:
-        for chunk in stream.text_stream:
-            text_parts.append(chunk)
-    return "".join(text_parts)
+    )
+    return response.content[0].text

@@ -18,9 +18,9 @@ MODEL = "claude-sonnet-4-6"
 
 # Token limits
 MAX_TOKENS_DESCRIPTION = 1024
-MAX_TOKENS_CLUSTER = 32768
+MAX_TOKENS_CLUSTER = 16384
 MAX_TOKENS_TAXONOMY = 16384
-MAX_TOKENS_CLASSIFICATION = 1024
+MAX_TOKENS_CLASSIFICATION = 2048
 
 # Batch sizes (tune based on token limits and rate limits)
 CLUSTERING_BATCH_SIZE = 15  # descriptions per clustering call (mindre = mer reliable, mer cost)
