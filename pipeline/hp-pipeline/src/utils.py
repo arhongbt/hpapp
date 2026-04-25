@@ -84,19 +84,19 @@ def call_claude(
     max_tokens: int = 1024,
     temperature: float = 0.0,
 ) -> str:
-    """Call Claude with retry logic. Returns the text response."""
-    response = client.messages.create(
+    """Call Claude with retry logic. Returns the text response.
+
+    Använder streaming — krävs av SDK när max_tokens >~21k och säkrare för
+    långa svar. Lägre max_tokens funkar också via stream().
+    """
+    text_parts: list[str] = []
+    with client.messages.stream(
         model=MODEL,
         max_tokens=max_tokens,
         temperature=temperature,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
-    )
-    
-    # Concatenate all text blocks
-    text_parts = []
-    for block in response.content:
-        if hasattr(block, "text"):
-            text_parts.append(block.text)
-    
-    return "\n".join(text_parts)
+    ) as stream:
+        for chunk in stream.text_stream:
+            text_parts.append(chunk)
+    return "".join(text_parts)
