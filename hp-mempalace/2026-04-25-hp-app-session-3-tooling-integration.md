@@ -91,3 +91,118 @@ Beslut hos Hong.
 1. Godkänner Hong planen (1–5)? Eller ska vi köra alla fyra ändå?
 2. Om GBrain → behöver Hong en agent-plattform (OpenClaw/Hermes) eller går det köra "naked" mot vår existerande Claude Code-setup? Måste verifieras i `INSTALL_FOR_AGENTS.md`.
 3. Ska gbrain-grafen vara den *enda* persistensen, eller dual-write JSONL + graf under utveckling?
+
+---
+
+## Update — efter Hongs godkännande
+
+Hong svarade kort: **"ja"** — godkände hela planen.
+
+### Vad som faktiskt hamnade på disk
+
+| Steg | Status | Plats |
+|---|---|---|
+| 1. Packa upp `hp-pipeline.zip` | ✅ | `hp-app/pipeline/hp-pipeline/` |
+| 2. Karpathy `CLAUDE.md` i pipeline-roten | ✅ | `hp-app/pipeline/hp-pipeline/CLAUDE.md` (med HP-projekt-specifik addendum) |
+| 3. Skissa GBrain-skrivning från step3+step4 | 🟡 påbörjad | Inläst `step3_taxonomy.py`, `step4_classify.py`, `models.py` — själva designen ej skriven än |
+| 4. GBrain `INSTALL_FOR_AGENTS.md` läst | ✅ | Krav: `git clone ~/gbrain`, `bun install && bun link`, `OPENAI_API_KEY` (kritisk), `ANTHROPIC_API_KEY` (optional) |
+| 5. claude-context + ruflo → backlog | ✅ | Bara README-fetched, inte klonade |
+
+### Repo-status (verbatim klargörande till Hong)
+
+> "På disk finns just nu: `pipeline/hp-pipeline/CLAUDE.md` (karpathy — färdig). Inget av de tre andra repos lokalt."
+
+- **karpathy-skills** — fullt integrerat (en CLAUDE.md-fil, inget mer i repot vi behöver)
+- **gbrain** — läst men ej klonat eller installerat
+- **claude-context** — bara README
+- **ruflo** — bara README
+
+---
+
+## Pipelinens datamodeller (för GBrain-mappning)
+
+Lästa från `src/models.py`. Fem Pydantic-modeller flödar genom pipelinen:
+
+| Modell | Steg | Relevant fält för GBrain |
+|---|---|---|
+| `Task` | input | `id, delprov, uppgift_text, answer_options, correct_answer` |
+| `TaskDescription` | step 1 | `task_id, description, primary_skill_guess, requires_image` |
+| `Cluster` | step 2 | `cluster_id, title, description, delprov, member_task_ids` |
+| `TaxonomyNode` | step 3 | `id, name, level (1=delprov, 2=area, 3=micro-skill), parent_id, prerequisites: list[str]` |
+| `Classification` | step 4 | `task_id, primary_skill_id, secondary_skill_ids, estimated_difficulty (1–5), estimated_time_seconds, common_traps, solution_strategies` |
+
+**Naturlig graf-mappning till GBrain:**
+
+```
+TaxonomyNode (level=1) → entity: Delprov
+TaxonomyNode (level=2) → entity: Area
+TaxonomyNode (level=3) → entity: MicroSkill
+
+(Area) –[part_of]→ (Delprov)
+(MicroSkill) –[belongs_to]→ (Area)
+(MicroSkill) –[prerequisite_for]→ (MicroSkill)   # från TaxonomyNode.prerequisites
+
+Task → entity: Task
+(Task) –[tests_primarily]→ (MicroSkill)          # primary_skill_id
+(Task) –[tests_also]→ (MicroSkill)               # secondary_skill_ids
+(Task) –[has_trap]→ (Trap)                       # common_traps som entiteter
+(Task) –[solved_by]→ (Strategy)                  # solution_strategies som entiteter
+
+Cluster → entity: Cluster
+(Task) –[member_of]→ (Cluster)
+```
+
+Det här är förslaget, ej beslutat. Klargörs vid nästa session.
+
+---
+
+## Versionshantering — ny situation
+
+Vid `/create-pr`-försök upptäcktes:
+- **dodsbo-repot**: bara `.claude/settings.local.json` ändrad (tooling-brus från code-review-toggle, inte sessionsarbete)
+- **hp-app/**: var **inte** ett git-repo
+
+Hong valde **alt 1**: init `hp-app/` som git-repo, pusha till nytt remote `arhongbt/hp-app`.
+
+### Status på init
+
+✅ `git init -b main` körd i `hp-app/`
+✅ `.gitignore` skriven (Python, OS, pipeline output, node_modules)
+✅ Filer **stagade**: `.gitignore`, `hp-mempalace/*`, `pipeline/*`
+🟡 **Inte committat ännu**
+❌ **Blockerare**: `gh` CLI inte installerat — kan inte skapa remote `arhongbt/hp-app` automatiskt
+
+### Push-procedur när Hong är redo
+
+```bash
+# Slutföra commit lokalt
+cd /Users/benzinho/Desktop/hp-app
+git commit -m "init: HP-app vision, pipeline, mempalace"
+
+# Skapa repot manuellt på github.com (privat) → arhongbt/hp-app
+# Eller installera gh: brew install gh && gh auth login
+
+# Sedan:
+git remote add origin https://github.com/arhongbt/hp-app.git
+git push -u origin main
+```
+
+---
+
+## Tonregister-anteckning (uppdaterad)
+
+Claude pushade tillbaka tre gånger denna session, alla med substans:
+1. Mot "integrera alla fyra repos" → två var fel verktyg, två var rätt
+2. Mot `/create-pr` mot dodsbo → sessionens arbete låg inte där
+3. Mot att överskatta vad som var "klart" → klargjorde att bara karpathy faktiskt landat på disk, inte de andra tre
+
+Hong accepterade alla tre. Mönstret som etablerades i session 1 håller: när substansen finns ska Claude pusha tillbaka, inte lista risker som redan övervägts.
+
+---
+
+## Öppna frågor (uppdaterade)
+
+1. Ska `git clone https://github.com/garrytan/gbrain.git ~/gbrain` köras nu eller vänta?
+2. Ska `gh` CLI installeras (`brew install gh`) eller skapar Hong repot manuellt på github.com?
+3. Privat eller publikt repo för `arhongbt/hp-app`? *Default-rekommendation: privat — det här är moaten, ska inte exponeras till konkurrenter.*
+4. Den föreslagna graf-mappningen ovan — granska och justera innan vi skriver kod för step3/step4 → GBrain.
